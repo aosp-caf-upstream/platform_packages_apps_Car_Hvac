@@ -68,6 +68,7 @@ public class HvacPanelController {
     private TemperatureBarOverlay mPassengerTemperatureBarCollapsed;
     private TemperatureBarOverlay mDriverTemperatureBarExpanded;
     private TemperatureBarOverlay mPassengerTemperatureBarExpanded;
+    private final boolean mShowCollapsed;
 
     @IntDef({STATE_COLLAPSED,
             STATE_COLLAPSED_DIMMED,
@@ -129,13 +130,15 @@ public class HvacPanelController {
             TemperatureBarOverlay passengerTemperatureExpanded,
             TemperatureBarOverlay driverTemperatureBarCollapsed,
             TemperatureBarOverlay passengerTemperatureBarCollapsed) {
+        Resources res = context.getResources();
+        mShowCollapsed = res.getBoolean(R.bool.config_showCollapsedBars);
+
         mDriverTemperatureBarCollapsed = driverTemperatureBarCollapsed;
         mPassengerTemperatureBarCollapsed = passengerTemperatureBarCollapsed;
 
         mCurrentState = STATE_COLLAPSED;
         mWindowManager = windowManager;
 
-        Resources res = context.getResources();
         mPanelCollapsedHeight = res.getDimensionPixelSize(R.dimen.car_hvac_panel_collapsed_height);
         mPanelFullExpandedHeight
                 = res.getDimensionPixelSize(R.dimen.car_hvac_panel_full_expanded_height);
@@ -144,10 +147,7 @@ public class HvacPanelController {
         mAutoOnDrawable = res.getDrawable(R.drawable.ic_auto_on);
 
         mDriverTemperatureBarExpanded = driverTemperatureExpanded;
-        mDriverTemperatureBarExpanded.setBarOnClickListener(mCollapseHvac);
-
         mPassengerTemperatureBarExpanded = passengerTemperatureExpanded;
-        mPassengerTemperatureBarExpanded.setBarOnClickListener(mCollapseHvac);
 
         mDriverTemperatureBarExpanded.setCloseButtonOnClickListener(mCollapseHvac);
         mPassengerTemperatureBarExpanded.setCloseButtonOnClickListener(mCollapseHvac);
@@ -165,7 +165,9 @@ public class HvacPanelController {
         mPanel = mContainer.findViewById(R.id.hvac_center_panel);
 
         mHvacFanControlBackground = mPanel.findViewById(R.id.fan_control_bg);
-        mPanel.setOnClickListener(mCollapseHvac);
+        // set clickable so that clicks are not forward to the mContainer. This way a miss click
+        // does not close the UI
+        mPanel.setClickable(true);
 
         // Set up top row buttons
         mPanelTopRow = (HvacPanelRow) mContainer.findViewById(R.id.top_row);
@@ -199,6 +201,11 @@ public class HvacPanelController {
 
         mDriverSeatWarmer = (SeatWarmerButton) mContainer.findViewById(R.id.left_seat_heater);
         mPassengerSeatWarmer = (SeatWarmerButton) mContainer.findViewById(R.id.right_seat_heater);
+
+        if (!mShowCollapsed) {
+            mDriverTemperatureBarCollapsed.setVisibility(View.INVISIBLE);
+            mPassengerTemperatureBarCollapsed.setVisibility(View.INVISIBLE);
+        }
     }
 
     public void updateHvacController(HvacController controller) {
@@ -507,7 +514,15 @@ public class HvacPanelController {
          }
      };
 
-    private View.OnClickListener mExpandHvac = new View.OnClickListener() {
+    public void toggleHvacUi() {
+        if(mCurrentState != STATE_COLLAPSED) {
+            mCollapseHvac.onClick(null);
+        } else {
+            mExpandHvac.onClick(null);
+        }
+    }
+
+    public View.OnClickListener mExpandHvac = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
              if (!mHvacIsOn || mInAnimation) {
@@ -550,8 +565,10 @@ public class HvacPanelController {
             if (mEndState == STATE_FULL_EXPANDED) {
                 mPassengerTemperatureBarExpanded.setVisibility(View.VISIBLE);
                 mDriverTemperatureBarExpanded.setVisibility(View.VISIBLE);
-                mDriverTemperatureBarCollapsed.setVisibility(View.INVISIBLE);
-                mPassengerTemperatureBarCollapsed.setVisibility(View.INVISIBLE);
+                if (mShowCollapsed) {
+                    mDriverTemperatureBarCollapsed.setVisibility(View.INVISIBLE);
+                    mPassengerTemperatureBarCollapsed.setVisibility(View.INVISIBLE);
+                }
                 mContainer.setAlpha(1);
                 mContainer.setVisibility(View.VISIBLE);
             }
@@ -559,8 +576,10 @@ public class HvacPanelController {
 
         public void onTransitionComplete() {
             if (mEndState == STATE_COLLAPSED) {
-                mDriverTemperatureBarCollapsed.setVisibility(View.VISIBLE);
-                mPassengerTemperatureBarCollapsed.setVisibility(View.VISIBLE);
+                if (mShowCollapsed) {
+                    mDriverTemperatureBarCollapsed.setVisibility(View.VISIBLE);
+                    mPassengerTemperatureBarCollapsed.setVisibility(View.VISIBLE);
+                }
                 handler.postAtFrontOfQueue(() -> {
                     mDriverTemperatureBarExpanded.setVisibility(View.INVISIBLE);
                     mPassengerTemperatureBarExpanded.setVisibility(View.INVISIBLE);
